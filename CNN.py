@@ -69,14 +69,14 @@ def main():
     # Xtest  = rearrange(test['X'])
     # Ytest  = test['y'].flatten() - 1
     # del test
-    # Ytest_ind  = y2indicator(Ytest)
+    Ytest_ind  = y2indicator(Ytest)
 
     # gradient descent params
-    max_iter = 6
+    max_iter = 1000
     print_period = 10
     N = Xtrain.shape[0]
 
-    batch_sz = 250
+    batch_sz = 1511
     # batch_sz = 500
     n_batches = N // batch_sz
 
@@ -91,23 +91,27 @@ def main():
     # print "Ytest.shape:", Ytest.shape
 
     # initial weights
-    M = 500
-    K = 10
+    M = 1511
+    K = 7
     poolsz = (2, 2)
 
-    W1_shape = (5, 5, 1, 20) # (filter_width, filter_height, num_color_channels, num_feature_maps)
+    W1_shape = (3, 3, 1, 32) # (filter_width, filter_height, num_color_channels, num_feature_maps)
     W1_init = init_filter(W1_shape, poolsz)
     b1_init = np.zeros(W1_shape[-1], dtype=np.float32) # one bias per output feature map
 
-    W2_shape = (5, 5, 20, 50) # (filter_width, filter_height, old_num_feature_maps, num_feature_maps)
+    W2_shape = (3, 3, 32, 64) # (filter_width, filter_height, old_num_feature_maps, num_feature_maps)
     W2_init = init_filter(W2_shape, poolsz)
     b2_init = np.zeros(W2_shape[-1], dtype=np.float32)
 
+    W3_shape = (3, 3, 64, 128)  # (filter_width, filter_height, old_num_feature_maps, num_feature_maps)
+    W3_init = init_filter(W3_shape, poolsz)
+    b3_init = np.zeros(W3_shape[-1], dtype=np.float32)
+
     # vanilla ANN weights
-    W3_init = np.random.randn(W2_shape[-1]*12*12, M) / np.sqrt(W2_shape[-1]*12*12 + M)
-    b3_init = np.zeros(M, dtype=np.float32)
-    W4_init = np.random.randn(M, K) / np.sqrt(M + K)
-    b4_init = np.zeros(K, dtype=np.float32)
+    W4_init = np.random.randn(W3_shape[-1]*6*6, M) / np.sqrt(W3_shape[-1]*6*6 + M)
+    b4_init = np.zeros(M, dtype=np.float32)
+    W5_init = np.random.randn(M, K) / np.sqrt(M + K)
+    b5_init = np.zeros(K, dtype=np.float32)
 
 
     # define variables and expressions
@@ -122,19 +126,19 @@ def main():
     b3 = tf.Variable(b3_init.astype(np.float32))
     W4 = tf.Variable(W4_init.astype(np.float32))
     b4 = tf.Variable(b4_init.astype(np.float32))
+    W5 = tf.Variable(W5_init.astype(np.float32))
+    b5 = tf.Variable(b5_init.astype(np.float32))
 
     Z1 = convpool(X, W1, b1)
     Z2 = convpool(Z1, W2, b2)
-    print(Z2.shape)
-    Z2_shape = Z2.get_shape().as_list()
-    print(len(Z2_shape))
-    Z2r = tf.reshape(Z2, [Z2_shape[0], np.prod(Z2_shape[1:])])
+    Z3 = convpool(Z2, W3, b3)
 
-    print(Z2r.shape)
-    # sys.exit()
+    Z3_shape = Z3.get_shape().as_list()
+    Z3r = tf.reshape(Z3, [Z3_shape[0], np.prod(Z3_shape[1:])])
 
-    Z3 = tf.nn.relu(tf.matmul(Z2r, W3) + b3)
-    Yish = tf.matmul(Z3, W4) + b4
+    Z4 = tf.nn.relu(tf.matmul(Z3r, W4) + b4)
+
+    Yish = tf.matmul(Z4, W5) + b5
 
     cost = tf.reduce_sum(
         tf.nn.softmax_cross_entropy_with_logits(
@@ -155,9 +159,11 @@ def main():
         session.run(init)
 
         for i in range(max_iter):
+            print('iter %d' % (i))
             for j in range(n_batches):
                 Xbatch = Xtrain[j*batch_sz:(j*batch_sz + batch_sz),]
                 Ybatch = Ytrain_ind[j*batch_sz:(j*batch_sz + batch_sz),]
+
 
                 if len(Xbatch) == batch_sz:
                     session.run(train_op, feed_dict={X: Xbatch, T: Ybatch})
@@ -176,8 +182,8 @@ def main():
                         print("Cost / err at iteration i=%d, j=%d: %.3f / %.3f" % (i, j, test_cost, err))
                         LL.append(test_cost)
     print("Elapsed time:", (datetime.now() - t0))
-    plt.plot(LL)
-    plt.show()
+    # plt.plot(LL)
+    # plt.show()
 
 
 if __name__ == '__main__':
