@@ -16,7 +16,7 @@ import os
 import sys
 
 import cv2
-#import tensorflow as tf
+# import tensorflow as tf
 from FaceDetector import FaceDetector
 
 
@@ -31,6 +31,7 @@ def convpool(X, W, b):
 def init_filter(shape, poolsz):
     w = np.random.randn(*shape) / np.sqrt(np.prod(shape[:-1]) + shape[-1] * np.prod(shape[:-2] / np.prod(poolsz)))
     return w.astype(np.float32)
+
 
 # initial weights
 M = 128
@@ -88,7 +89,7 @@ Z4 = tf.matmul(Z3r, W4) + b4
 dropout_layer_d1 = tf.nn.relu(tf.nn.dropout(Z4, dropout))
 
 Z5 = tf.matmul(dropout_layer_d1, W5) + b5
-dropout_layer_d2 = tf.nn.relu(tf.nn.dropout(Z5, dropout))
+dropout_layer_d2 = tf.nn.sigmoid(tf.nn.dropout(Z5, dropout))
 
 Yish = tf.matmul(dropout_layer_d2, W6) + b6
 
@@ -99,16 +100,22 @@ cost = tf.reduce_sum(
     )
 )
 
+softmax_pred = tf.nn.softmax(
+    logits=Yish
+)
+
 # we'll use this to calculate the error rate
 predict_op = tf.argmax(Yish, 1)
 
 
 def evaluate(session, face):
-        Xeval = np.zeros([1, 48, 48, 1])
-        Xeval[0, :,:, 0] = face[:]
-        prediction = session.run(predict_op, feed_dict={X: Xeval})
-        print("Prediction: ", prediction)
-        return prediction
+    Xeval = np.zeros([1, 48, 48, 1])
+    Xeval[0, :, :, 0] = face[:]
+    prediction = session.run(predict_op, feed_dict={X: Xeval})
+    prediction_prob = session.run(softmax_pred, feed_dict={X: Xeval})
+    print("Prediction: ", prediction)
+    print("Prediction Prob: ", prediction_prob)
+    return prediction, prediction_prob
 
 
 def main():
@@ -124,14 +131,14 @@ def main():
         cap = cv2.VideoCapture(0)
         detector = FaceDetector('haarcascade_frontalface.xml')
         category_faces = {
-            0:  'Angry',
-            1:  'Disgust',
-            2:  'Fear',
-            3:  'Happy',
-            4:  'Sad',
-            5:  'Surprise',
-            6:  'Neutral'
-         }
+            0: 'Angry',
+            1: 'Disgust',
+            2: 'Fear',
+            3: 'Happy',
+            4: 'Sad',
+            5: 'Surprise',
+            6: 'Neutral'
+        }
         while True:
             ret, frame = cap.read()
             if frame is None:
@@ -141,26 +148,20 @@ def main():
                 faces, gray_frame = detector.detect_faces(frame, show_image=True)
             # print (faces[:][:])
             for (x, y, w, h) in faces:
-                
                 roi_gray = gray_frame[y:y + h, x:x + w]
                 face = cv2.resize(roi_gray, (48, 48))
-                pred = evaluate(session, face)
+                pred, pred_prob = evaluate(session, face)
 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
                 cv2.putText(frame, category_faces[pred[0]], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255))
 
-                
-                # f = np.array() 
-                
 
-            cv2.imshow('frame',frame)
-            key = cv2.waitKey(1)
+                # f = np.array()
+
+            cv2.imshow('frame', frame)
+            key = cv2.waitKey(0)
             if (key == 27):
                 sys.exit(0)
-
-
-
-
 
 
 if __name__ == '__main__':
