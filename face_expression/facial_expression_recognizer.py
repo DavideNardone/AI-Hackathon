@@ -15,6 +15,8 @@ import tensorflow as tf
 import os
 import sys
 
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import cv2
 # import tensorflow as tf
 from FaceDetector import FaceDetector
@@ -113,8 +115,8 @@ def evaluate(session, face):
     Xeval[0, :, :, 0] = face[:]
     prediction = session.run(predict_op, feed_dict={X: Xeval})
     prediction_prob = session.run(softmax_pred, feed_dict={X: Xeval})
-    print("Prediction: ", prediction)
-    print("Prediction Prob: ", prediction_prob)
+    # print("Prediction: ", prediction)
+    # print("Prediction Prob: ", prediction_prob)
     return prediction, prediction_prob
 
 
@@ -139,6 +141,19 @@ def main():
             5: 'Surprise',
             6: 'Neutral'
         }
+
+        fig, ax = plt.subplots()
+
+        y_pos = np.arange(len(category_faces.keys()))
+
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(category_faces.keys())
+
+        ax.invert_yaxis()  # labels read top-to-bottom
+        ax.set_xlabel('Probability')
+        ax.set_title('Facial expression')
+
+        count = 0
         while True:
             ret, frame = cap.read()
             if frame is None:
@@ -147,10 +162,25 @@ def main():
                 frame = cv2.resize(frame, (int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)))
                 faces, gray_frame = detector.detect_faces(frame, show_image=True)
             # print (faces[:][:])
+
+
+            if count > 5:
+                # ax.barh(y_pos, np.zeros([7, 1]), align='center', color='green')
+                plt.cla()
+                count = 0
+            else:
+                count += 1
+
             for (x, y, w, h) in faces:
                 roi_gray = gray_frame[y:y + h, x:x + w]
                 face = cv2.resize(roi_gray, (48, 48))
                 pred, pred_prob = evaluate(session, face)
+                print count
+
+                ax.barh(y_pos, pred_prob[0], align='center', color='green')
+
+                plt.draw()
+                plt.pause(0.001)
 
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
                 cv2.putText(frame, category_faces[pred[0]], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255))
@@ -159,7 +189,7 @@ def main():
                 # f = np.array()
 
             cv2.imshow('frame', frame)
-            key = cv2.waitKey(0)
+            key = cv2.waitKey(1)
             if (key == 27):
                 sys.exit(0)
 
