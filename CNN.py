@@ -56,20 +56,10 @@ def main():
     Xtest, Ytest = get_data_pickle(r"/media/data/test100.pickle")
 
     # Need to scale! don't leave as 0..255
-    # Y is a N x 1 matrix with values 1..10 (MATLAB indexes by 1)
-    # So flatten it and make it 0..9
-    # Also need indicator matrix for cost calculation
-    # Xtrain = rearrange(train['X'])
-    # Ytrain = train['y'].flatten() - 1
-    # print len(Ytrain)
-    # del train
 
     Xtrain, Ytrain = shuffle(Xtrain, Ytrain)
     Ytrain_ind = y2indicator(Ytrain)
 
-    # Xtest  = rearrange(test['X'])
-    # Ytest  = test['y'].flatten() - 1
-    # del test
     Ytest_ind  = y2indicator(Ytest)
 
     # gradient descent params
@@ -77,19 +67,9 @@ def main():
     print_period = 10
     N = Xtrain.shape[0]
 
-    batch_sz = 10
+    batch_sz = 128
     # batch_sz = 500
     n_batches = N // batch_sz
-
-    # limit samples since input will always have to be same size
-    # you could also just do N = N / batch_sz * batch_sz
-    # Xtrain = Xtrain[:73000,]
-    # Ytrain = Ytrain[:73000]
-    # Xtest = Xtest[:26000,]
-    # Ytest = Ytest[:26000]
-    # Ytest_ind = Ytest_ind[:26000,]
-    # print "Xtest.shape:", Xtest.shape
-    # print "Ytest.shape:", Ytest.shape
 
     # initial weights
     M = batch_sz
@@ -121,8 +101,8 @@ def main():
 
     # define variables and expressions
     # using None as the first shape element takes up too much RAM unfortunately
-    X = tf.placeholder(tf.float32, shape=(batch_sz, 48, 48, 1), name='X')
-    T = tf.placeholder(tf.float32, shape=(batch_sz, K), name='T')
+    X = tf.placeholder(tf.float32, shape=(None, 48, 48, 1), name='X')
+    T = tf.placeholder(tf.float32, shape=(None, K), name='T')
     W1 = tf.Variable(W1_init.astype(np.float32))
     b1 = tf.Variable(b1_init.astype(np.float32))
     W2 = tf.Variable(W2_init.astype(np.float32))
