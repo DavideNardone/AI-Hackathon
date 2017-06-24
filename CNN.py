@@ -63,6 +63,7 @@ def main():
     # Ytrain = train['y'].flatten() - 1
     # print len(Ytrain)
     # del train
+
     Xtrain, Ytrain = shuffle(Xtrain, Ytrain)
     Ytrain_ind = y2indicator(Ytrain)
 
@@ -72,11 +73,11 @@ def main():
     Ytest_ind  = y2indicator(Ytest)
 
     # gradient descent params
-    max_iter = 1000
+    epoch = 1000
     print_period = 10
     N = Xtrain.shape[0]
 
-    batch_sz = 1511
+    batch_sz = 128
     # batch_sz = 500
     n_batches = N // batch_sz
 
@@ -91,7 +92,7 @@ def main():
     # print "Ytest.shape:", Ytest.shape
 
     # initial weights
-    M = 1511
+    M = batch_sz
     K = 7
     poolsz = (2, 2)
     dropout = 0.8
@@ -111,8 +112,11 @@ def main():
     # vanilla ANN weights
     W4_init = np.random.randn(W3_shape[-1]*6*6, M) / np.sqrt(W3_shape[-1]*6*6 + M)
     b4_init = np.zeros(M, dtype=np.float32)
-    W5_init = np.random.randn(M, K) / np.sqrt(M + K)
-    b5_init = np.zeros(K, dtype=np.float32)
+    W5_init = np.random.randn(M, M) / np.sqrt(M + M)
+    b5_init = np.zeros(M, dtype=np.float32)
+
+    W6_init = np.random.randn(M, K) / np.sqrt(M + K)
+    b6_init = np.zeros(K, dtype=np.float32)
 
 
     # define variables and expressions
@@ -129,18 +133,28 @@ def main():
     b4 = tf.Variable(b4_init.astype(np.float32))
     W5 = tf.Variable(W5_init.astype(np.float32))
     b5 = tf.Variable(b5_init.astype(np.float32))
+    W6 = tf.Variable(W6_init.astype(np.float32))
+    b6 = tf.Variable(b6_init.astype(np.float32))
 
     Z1 = convpool(X, W1, b1)
     Z2 = convpool(Z1, W2, b2)
     Z3 = convpool(Z2, W3, b3)
 
     Z3_shape = Z3.get_shape().as_list()
+    # Z3r = tf.reshape(Z3, [Z3_shape[0], np.prod(Z3_shape[1:])])
     Z3r = tf.reshape(Z3, [Z3_shape[0], np.prod(Z3_shape[1:])])
 
-    Z4 = tf.nn.relu(tf.matmul(Z3r, W4) + b4)
-    dropout_layer = tf.nn.dropout(Z4, dropout)
+    # print("z3", Z3)
+    # print("Z3r", Z3r)
+    # print("W4", W4)
 
-    Yish = tf.matmul(dropout_layer, W5) + b5
+    Z4 = tf.matmul(Z3r, W4) + b4
+    dropout_layer_d1 = tf.nn.relu(tf.nn.dropout(Z4, dropout))
+
+    Z5 = tf.matmul(dropout_layer_d1, W5) + b5
+    dropout_layer_d2 = tf.nn.relu(tf.nn.dropout(Z5, dropout))
+
+    Yish = tf.matmul(dropout_layer_d2, W6) + b6
 
     cost = tf.reduce_sum(
         tf.nn.softmax_cross_entropy_with_logits(
@@ -161,29 +175,37 @@ def main():
     with tf.Session() as session:
         session.run(init)
 
-        for i in range(max_iter):
-            print('iter %d' % (i))
-            for j in range(n_batches):
-                Xbatch = Xtrain[j*batch_sz:(j*batch_sz + batch_sz),]
-                Ybatch = Ytrain_ind[j*batch_sz:(j*batch_sz + batch_sz),]
+        try:
+            for i in xrange(epoch):
+                print('epoch %d' % (i))
+                Xtrain, Ytrain = shuffle(Xtrain, Ytrain)
+                Ytrain_ind = y2indicator(Ytrain)
+                for j in xrange(n_batches):
+                    Xbatch = Xtrain[j*batch_sz:(j*batch_sz + batch_sz),]
+                    Ybatch = Ytrain_ind[j*batch_sz:(j*batch_sz + batch_sz),]
 
+                    if len(Xbatch) == batch_sz:
+                        session.run(train_op, feed_dict={X: Xbatch, T: Ybatch})
+                        if j % print_period == 0:
+                            # due to RAM limitations we need to have a fixed size input
+                            # so as a result, we have this ugly total cost and prediction computation
+                            test_cost = 0
+                            prediction = np.zeros(len(Xtest))
+                            for k in xrange(len(Xtest) // batch_sz):
+                                Xtestbatch = Xtest[k*batch_sz:(k*batch_sz + batch_sz),]
+                                Ytestbatch = Ytest_ind[k*batch_sz:(k*batch_sz + batch_sz),]
+                                test_cost += session.run(cost, feed_dict={X: Xtestbatch, T: Ytestbatch})
+                                prediction[k*batch_sz:(k*batch_sz + batch_sz)] = session.run(
+                                    predict_op, feed_dict={X: Xtestbatch})
+                            err = error_rate(prediction, Ytest)
+                            print("Cost / err at iteration i=%d, j=%d: %.3f / %.3f" % (i, j, test_cost, err))
+                            LL.append(test_cost)
+        except KeyboardInterrupt:
+            saver = tf.train.Saver()
 
-                if len(Xbatch) == batch_sz:
-                    session.run(train_op, feed_dict={X: Xbatch, T: Ybatch})
-                    if j % print_period == 0:
-                        # due to RAM limitations we need to have a fixed size input
-                        # so as a result, we have this ugly total cost and prediction computation
-                        test_cost = 0
-                        prediction = np.zeros(len(Xtest))
-                        for k in range(len(Xtest) // batch_sz):
-                            Xtestbatch = Xtest[k*batch_sz:(k*batch_sz + batch_sz),]
-                            Ytestbatch = Ytest_ind[k*batch_sz:(k*batch_sz + batch_sz),]
-                            test_cost += session.run(cost, feed_dict={X: Xtestbatch, T: Ytestbatch})
-                            prediction[k*batch_sz:(k*batch_sz + batch_sz)] = session.run(
-                                predict_op, feed_dict={X: Xtestbatch})
-                        err = error_rate(prediction, Ytest)
-                        print("Cost / err at iteration i=%d, j=%d: %.3f / %.3f" % (i, j, test_cost, err))
-                        LL.append(test_cost)
+            # Now, save the graph
+            saver.save(session, 'my_test_model')
+
     print("Elapsed time:", (datetime.now() - t0))
     # plt.plot(LL)
     # plt.show()
