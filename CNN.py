@@ -23,7 +23,7 @@ from sklearn.utils import shuffle
 
 from benchmark import *
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def convpool(X, W, b):
     # just assume pool size is (2,2) because we need to augment it with 1s
@@ -52,8 +52,8 @@ def rearrange(X):
 
 def main():
     # train, test = get_data()
-    Xtrain, Ytrain = get_data_pickle(r"/media/data/training.pickle")
-    Xtest, Ytest = get_data_pickle(r"/media/data/test.pickle")
+    Xtrain, Ytrain = get_data_pickle(r"/media/data/training100.pickle")
+    Xtest, Ytest = get_data_pickle(r"/media/data/test100.pickle")
 
     # Need to scale! don't leave as 0..255
     # Y is a N x 1 matrix with values 1..10 (MATLAB indexes by 1)
@@ -77,7 +77,7 @@ def main():
     print_period = 10
     N = Xtrain.shape[0]
 
-    batch_sz = 128
+    batch_sz = 10
     # batch_sz = 500
     n_batches = N // batch_sz
 
@@ -156,6 +156,8 @@ def main():
 
     Yish = tf.matmul(dropout_layer_d2, W6) + b6
 
+    print(Yish)
+
     cost = tf.reduce_sum(
         tf.nn.softmax_cross_entropy_with_logits(
             logits=Yish,
@@ -163,11 +165,17 @@ def main():
         )
     )
 
+    print("cost", cost)
+
+
     # train_op = tf.train.RMSPropOptimizer(0.0001, decay=0.99, momentum=0.9).minimize(cost)
     train_op = tf.train.AdamOptimizer().minimize(cost)
 
     # we'll use this to calculate the error rate
     predict_op = tf.argmax(Yish, 1)
+
+    # correct_pred = tf.equal(tf.argmax(predict_op, 1), tf.argmax(T, 1))
+    # accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
     t0 = datetime.now()
     LL = []
@@ -200,6 +208,7 @@ def main():
                             err = error_rate(prediction, Ytest)
                             print("Cost / err at iteration i=%d, j=%d: %.3f / %.3f" % (i, j, test_cost, err))
                             LL.append(test_cost)
+
         except KeyboardInterrupt:
             saver = tf.train.Saver()
 
