@@ -15,12 +15,13 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import os
+import sys
 from datetime import datetime
 from scipy.signal import convolve2d
 from scipy.io import loadmat
 from sklearn.utils import shuffle
 
-from benchmark import get_data, y2indicator, error_rate
+from benchmark import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -50,38 +51,42 @@ def rearrange(X):
 
 
 def main():
-    train, test = get_data()
+    # train, test = get_data()
+    Xtrain, Ytrain = get_data_pickle(r"/media/data/training100.pickle")
+    Xtest, Ytest = get_data_pickle(r"/media/data/test100.pickle")
 
     # Need to scale! don't leave as 0..255
     # Y is a N x 1 matrix with values 1..10 (MATLAB indexes by 1)
     # So flatten it and make it 0..9
     # Also need indicator matrix for cost calculation
-    Xtrain = rearrange(train['X'])
-    Ytrain = train['y'].flatten() - 1
+    # Xtrain = rearrange(train['X'])
+    # Ytrain = train['y'].flatten() - 1
     # print len(Ytrain)
-    del train
+    # del train
     Xtrain, Ytrain = shuffle(Xtrain, Ytrain)
     Ytrain_ind = y2indicator(Ytrain)
 
-    Xtest  = rearrange(test['X'])
-    Ytest  = test['y'].flatten() - 1
-    del test
-    Ytest_ind  = y2indicator(Ytest)
+    # Xtest  = rearrange(test['X'])
+    # Ytest  = test['y'].flatten() - 1
+    # del test
+    # Ytest_ind  = y2indicator(Ytest)
 
     # gradient descent params
     max_iter = 6
     print_period = 10
     N = Xtrain.shape[0]
-    batch_sz = 500
+
+    batch_sz = 250
+    # batch_sz = 500
     n_batches = N // batch_sz
 
     # limit samples since input will always have to be same size
     # you could also just do N = N / batch_sz * batch_sz
-    Xtrain = Xtrain[:73000,]
-    Ytrain = Ytrain[:73000]
-    Xtest = Xtest[:26000,]
-    Ytest = Ytest[:26000]
-    Ytest_ind = Ytest_ind[:26000,]
+    # Xtrain = Xtrain[:73000,]
+    # Ytrain = Ytrain[:73000]
+    # Xtest = Xtest[:26000,]
+    # Ytest = Ytest[:26000]
+    # Ytest_ind = Ytest_ind[:26000,]
     # print "Xtest.shape:", Xtest.shape
     # print "Ytest.shape:", Ytest.shape
 
@@ -90,7 +95,7 @@ def main():
     K = 10
     poolsz = (2, 2)
 
-    W1_shape = (5, 5, 3, 20) # (filter_width, filter_height, num_color_channels, num_feature_maps)
+    W1_shape = (5, 5, 1, 20) # (filter_width, filter_height, num_color_channels, num_feature_maps)
     W1_init = init_filter(W1_shape, poolsz)
     b1_init = np.zeros(W1_shape[-1], dtype=np.float32) # one bias per output feature map
 
@@ -99,7 +104,7 @@ def main():
     b2_init = np.zeros(W2_shape[-1], dtype=np.float32)
 
     # vanilla ANN weights
-    W3_init = np.random.randn(W2_shape[-1]*8*8, M) / np.sqrt(W2_shape[-1]*8*8 + M)
+    W3_init = np.random.randn(W2_shape[-1]*12*12, M) / np.sqrt(W2_shape[-1]*12*12 + M)
     b3_init = np.zeros(M, dtype=np.float32)
     W4_init = np.random.randn(M, K) / np.sqrt(M + K)
     b4_init = np.zeros(K, dtype=np.float32)
@@ -107,7 +112,7 @@ def main():
 
     # define variables and expressions
     # using None as the first shape element takes up too much RAM unfortunately
-    X = tf.placeholder(tf.float32, shape=(batch_sz, 32, 32, 3), name='X')
+    X = tf.placeholder(tf.float32, shape=(batch_sz, 48, 48, 1), name='X')
     T = tf.placeholder(tf.float32, shape=(batch_sz, K), name='T')
     W1 = tf.Variable(W1_init.astype(np.float32))
     b1 = tf.Variable(b1_init.astype(np.float32))
@@ -120,9 +125,15 @@ def main():
 
     Z1 = convpool(X, W1, b1)
     Z2 = convpool(Z1, W2, b2)
+    print(Z2.shape)
     Z2_shape = Z2.get_shape().as_list()
+    print(len(Z2_shape))
     Z2r = tf.reshape(Z2, [Z2_shape[0], np.prod(Z2_shape[1:])])
-    Z3 = tf.nn.relu( tf.matmul(Z2r, W3) + b3 )
+
+    print(Z2r.shape)
+    # sys.exit()
+
+    Z3 = tf.nn.relu(tf.matmul(Z2r, W3) + b3)
     Yish = tf.matmul(Z3, W4) + b4
 
     cost = tf.reduce_sum(

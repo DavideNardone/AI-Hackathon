@@ -16,6 +16,8 @@ from scipy.io import loadmat
 from sklearn.utils import shuffle
 from datetime import datetime
 
+import cPickle
+
 
 def y2indicator(y):
     N = len(y)
@@ -56,16 +58,21 @@ def flatten(X):
 # Out[13]: (26032, 1)
 
 
+def get_data_pickle(filename):
+    with open(filename, "rb") as input_file:
+        e = cPickle.load(input_file)
+        return e['X'], e['y']
+
 def get_data():
-    if not os.path.exists('/home/davidenardone/TENSORFLOW/larges_files/train_32x32.mat'):
+    if not os.path.exists('/media/data/larges_files/train_32x32.mat'):
         print('Looking for ../large_files/train_32x32.mat')
         print('You have not downloaded the data and/or not placed the files in the correct location.')
         print('Please get the data from: http://ufldl.stanford.edu/housenumbers')
         print('Place train_32x32.mat and test_32x32.mat in the folder large_files adjacent to the class folder')
         exit()
 
-    train = loadmat('/home/davidenardone/TENSORFLOW/larges_files/train_32x32.mat')
-    test = loadmat('/home/davidenardone/TENSORFLOW/larges_files/test_32x32.mat')
+    train = loadmat('/media/data/larges_files/train_32x32.mat')
+    test = loadmat('/media/data/larges_files/test_32x32.mat')
     return train, test
 
 
