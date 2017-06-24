@@ -21,7 +21,7 @@ import cPickle
 
 def y2indicator(y):
     N = len(y)
-    ind = np.zeros((N, 10))
+    ind = np.zeros((N, 7))
     for i in range(N):
         ind[i, y[i]] = 1
     return ind

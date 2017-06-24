@@ -52,8 +52,8 @@ def rearrange(X):
 
 def main():
     # train, test = get_data()
-    Xtrain, Ytrain = get_data_pickle(r"/media/data/training100.pickle")
-    Xtest, Ytest = get_data_pickle(r"/media/data/test100.pickle")
+    Xtrain, Ytrain = get_data_pickle(r"/media/data/training.pickle")
+    Xtest, Ytest = get_data_pickle(r"/media/data/test.pickle")
 
     # Need to scale! don't leave as 0..255
     # Y is a N x 1 matrix with values 1..10 (MATLAB indexes by 1)
@@ -94,6 +94,7 @@ def main():
     M = 1511
     K = 7
     poolsz = (2, 2)
+    dropout = 0.8
 
     W1_shape = (3, 3, 1, 32) # (filter_width, filter_height, num_color_channels, num_feature_maps)
     W1_init = init_filter(W1_shape, poolsz)
@@ -137,8 +138,9 @@ def main():
     Z3r = tf.reshape(Z3, [Z3_shape[0], np.prod(Z3_shape[1:])])
 
     Z4 = tf.nn.relu(tf.matmul(Z3r, W4) + b4)
+    dropout_layer = tf.nn.dropout(Z4, dropout)
 
-    Yish = tf.matmul(Z4, W5) + b5
+    Yish = tf.matmul(dropout_layer, W5) + b5
 
     cost = tf.reduce_sum(
         tf.nn.softmax_cross_entropy_with_logits(
@@ -147,7 +149,8 @@ def main():
         )
     )
 
-    train_op = tf.train.RMSPropOptimizer(0.0001, decay=0.99, momentum=0.9).minimize(cost)
+    # train_op = tf.train.RMSPropOptimizer(0.0001, decay=0.99, momentum=0.9).minimize(cost)
+    train_op = tf.train.AdamOptimizer().minimize(cost)
 
     # we'll use this to calculate the error rate
     predict_op = tf.argmax(Yish, 1)
