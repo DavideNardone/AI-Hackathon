@@ -10,16 +10,28 @@
 # Note: you may need to update your version of future
 # sudo pip install -U future
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 import os
 import sys
 
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+from matplotlib import pylab
 import cv2
+#import tensorflow as tf
+# from FaceDetector import FaceDetector
+
+#   import facenet libraires
+
+from scipy import misc
 # import tensorflow as tf
-from FaceDetector import FaceDetector
+# import os
+from facenet.align import detect_face
+
+from pynput.keyboard import Key, Listener
 
 
 def convpool(X, W, b):
@@ -35,6 +47,7 @@ def init_filter(shape, poolsz):
     return w.astype(np.float32)
 
 
+show_key = False
 # initial weights
 M = 128
 K = 7
@@ -111,87 +124,197 @@ predict_op = tf.argmax(Yish, 1)
 
 
 def evaluate(session, face):
-    Xeval = np.zeros([1, 48, 48, 1])
-    Xeval[0, :, :, 0] = face[:]
-    prediction = session.run(predict_op, feed_dict={X: Xeval})
-    prediction_prob = session.run(softmax_pred, feed_dict={X: Xeval})
-    # print("Prediction: ", prediction)
-    # print("Prediction Prob: ", prediction_prob)
-    return prediction, prediction_prob
+        Xeval = np.zeros([1, 48, 48, 1])
+        Xeval[0, :, :, 0] = face[:]
+        prediction = session.run(predict_op, feed_dict={X: Xeval})
+        prediction_prob = session.run(softmax_pred, feed_dict={X: Xeval})
+        print("Prediction: ", prediction)
+        print("Prediction Prob: ", prediction_prob)
+        return prediction, prediction_prob
+
+
+def on_press(key):
+    global show_key
+    show_key = not show_key
+
+
+def showAudienceAttentionBar(attention):
+
+    plt.figure(2)
+    print (attention)
+
+    data = ((0, 0), (0, 0), (0, 0), attention, (0, 0), (0, 0), (0, 0))
+    labels = ("", "", "", "", "", "", "")
+
+    pylab.xlabel("Focus/No focus")
+    pylab.title("Audience attention")
+    pylab.gca().set_yscale('log')
+
+    colors = ['green', 'red']
+
+    x = np.arange(len(data))
+    for i in xrange(len(data[0])):
+        y = [d[i] for d in data]
+        pylab.bar(x + i * 0.8, y, width=0.8, color=colors[i])
+    pylab.gca().set_xticks(x)
+    pylab.gca().set_xticklabels(labels)
+    pylab.gca().set_ylim((0, 1000 + np.array(attention).max()))
+
+    if show_key:
+        pylab.draw()
 
 
 def main():
-    init = tf.global_variables_initializer()
-    with tf.Session() as session:
-        session.run(init)
-        print("Restoring model")
-        saver = tf.train.Saver()
-        saver.restore(session, "my_test_model")
-        print("Done!")
 
-        # cap = cv2.VideoCapture('happiness.mov')
-        cap = cv2.VideoCapture(0)
-        detector = FaceDetector('haarcascade_frontalface.xml')
-        category_faces = {
-            0: 'Angry',
-            1: 'Disgust',
-            2: 'Fear',
-            3: 'Happy',
-            4: 'Sad',
-            5: 'Surprise',
-            6: 'Neutral'
-        }
+    with Listener(on_press=on_press) as listener:
+        # pass
 
-        fig, ax = plt.subplots()
+        minsize = 30 # minimum size of face
+        threshold = [ 0.6, 0.7, 0.7 ]  # three steps's threshold
+        factor = 0.709 # scale factor
 
-        y_pos = np.arange(len(category_faces.keys()))
+        init = tf.global_variables_initializer()
+        with tf.Session() as session:
 
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels(category_faces.keys())
+            session.run(init)
+            print("Restoring model")
+            saver = tf.train.Saver()
+            saver.restore(session, "my_test_model")
+            print("Done!")
 
-        ax.invert_yaxis()  # labels read top-to-bottom
-        ax.set_xlabel('Probability')
-        ax.set_title('Facial expression')
+            # cap = cv2.VideoCapture('conf_video2.mp4')
+            cap = cv2.VideoCapture(0)
 
-        count = 0
-        while True:
-            ret, frame = cap.read()
-            if frame is None:
-                print('None')
-            else:
-                frame = cv2.resize(frame, (int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)))
-                faces, gray_frame = detector.detect_faces(frame, show_image=True)
-            # print (faces[:][:])
+            # detector = FaceDetector('haarcascade_frontalface.xml')
+            category_faces = {
+                0:  'Angry',
+                1:  'Disgust',
+                2:  'Fear',
+                3:  'Happy',
+                4:  'Sad',
+                5:  'Surprise',
+                6:  'Neutral'
+            }
 
+            focus = {
+                0: 'No focus',
+                1: 'No focus',
+                2: 'Focus',
+                3: 'Focus',
+                4: 'No focus',
+                5: 'Focus',
+                6: 'Neutral'
+            }
 
-            if count > 5:
-                # ax.barh(y_pos, np.zeros([7, 1]), align='center', color='green')
-                plt.cla()
-                count = 0
-            else:
-                count += 1
+            focus_counter = {
+                'No focus': .00001,
+                'Focus': .00001
+            }
 
-            for (x, y, w, h) in faces:
-                roi_gray = gray_frame[y:y + h, x:x + w]
-                face = cv2.resize(roi_gray, (48, 48))
-                pred, pred_prob = evaluate(session, face)
-                print count
+            fig, ax = plt.subplots()
+            fig2, _ = plt.subplots()
 
-                ax.barh(y_pos, pred_prob[0], align='center', color='green')
+            y_pos = np.arange(len(category_faces.keys()))
 
-                plt.draw()
-                plt.pause(0.001)
+            ax.invert_yaxis()  # labels read top-to-bottom
+            ax.set_xlabel('Probability')
+            ax.set_title('Facial expression')
 
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-                cv2.putText(frame, category_faces[pred[0]], (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255))
+            with session.as_default():
+               pnet, rnet, onet = detect_face.create_mtcnn(session, None)
 
+            count = 0
+            focus_frame_counter = 0
 
-                # f = np.array()
+            while True:
+                ret, frame = cap.read()
+                if frame is None:
+                    print('None')
+                else:
+                    frame = cv2.resize(frame, (int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)))
+                    pass
+                # print (faces[:][:])
 
-            cv2.imshow('frame', frame)
-            key = cv2.waitKey(1)
-            if (key == 27):
-                sys.exit(0)
+                faces, _ = detect_face.detect_face(
+                        frame, minsize, pnet,
+                        rnet, onet, threshold, factor)
+
+                if focus_frame_counter > 7:
+                    focus_frame_counter = 0
+                    # if focus_counter['No focus'] > focus_counter['Focus']:
+
+                    showAudienceAttentionBar((focus_counter['Focus'], focus_counter['No focus']))
+                else:
+                    focus_frame_counter += 1
+
+                if count > 5:
+                    ax.cla()
+                    count = 0
+                else:
+                    count += 1
+
+                for (x1, y1, x2, y2, acc) in faces:
+                    x1 = int(x1)
+                    y1 = int(y1)
+                    x2 = int(x2)
+                    y2 = int(y2)
+                    w = x2-x1
+                    h = y2-y1
+
+                    #   plot the box using cv2
+
+                    if w > h and y1 + w < frame.shape[0]:
+                        h = w
+                    elif w < h and y1 + h < frame.shape[1]:
+                        w = h
+
+                    cv2.rectangle(frame, (x1, y1), (x1+w, y1+h), (255, 0, 0), 2)
+
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    # print(y1)
+                    # print(y1+h)
+                    # print(x1)
+                    # print(x1+w)
+                    # print(w)
+                    # print(x2)
+                    # print(frame.shape)
+                    roi_gray = gray[y1:y1+h, x1:x1+w]
+                    # print (roi_gray.shape)
+
+                    if roi_gray.shape[0] == 0 or roi_gray.shape[1] == 0:
+                        continue
+
+                    # print (roi_gray.shape)
+
+                    face = cv2.resize(roi_gray, (48, 48))
+                    pred, pred_prob = evaluate(session, face)
+
+                    if pred[0] == 6:
+                        focus_counter['No focus'] += 0.5
+                        focus_counter['Focus'] += 0.5
+                    else:
+                        focus_counter[focus[pred[0]]] += 1
+                    # print (focus_counter)
+
+                    plt.figure(1)
+
+                    ax.barh(y_pos, pred_prob[0], align='center', color='green')
+
+                    ax.set_yticks(y_pos)
+                    ax.set_yticklabels(category_faces.values())
+
+                    if show_key:
+                        plt.draw()
+                        plt.pause(0.001)
+
+                    cv2.rectangle(frame, (x1, y1), (x1 + w, y1 + h), (255, 0, 0), 2)
+                    cv2.putText(frame, category_faces[pred[0]], (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))
+
+                if show_key:
+                    cv2.imshow('frame',frame)
+                    key = cv2.waitKey(42)
+                    if (key == 27):
+                        sys.exit(0)
 
 
 if __name__ == '__main__':
