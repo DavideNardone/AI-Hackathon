@@ -29,7 +29,7 @@ import cv2
 from scipy import misc
 # import tensorflow as tf
 # import os
-from facenet.align import detect_face
+from align import detect_face
 
 from pynput.keyboard import Key, Listener
 
@@ -175,7 +175,6 @@ def main():
 
         init = tf.global_variables_initializer()
         with tf.Session() as session:
-
             session.run(init)
             print("Restoring model")
             saver = tf.train.Saver()
