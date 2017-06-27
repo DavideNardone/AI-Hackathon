@@ -175,11 +175,10 @@ def main():
 
         init = tf.global_variables_initializer()
         with tf.Session() as session:
-
             session.run(init)
             print("Restoring model")
             saver = tf.train.Saver()
-            saver.restore(session, "/Users/davidenardone/PycharmProjects/AI-Hackathon/face_expression/my_test_model")
+            saver.restore(session, "my_test_model")
             print("Done!")
 
             # cap = cv2.VideoCapture('conf_video2.mp4')
