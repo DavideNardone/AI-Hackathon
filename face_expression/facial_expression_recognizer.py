@@ -29,7 +29,7 @@ import cv2
 from scipy import misc
 # import tensorflow as tf
 # import os
-from facenet.align import detect_face
+from align import detect_face
 
 from pynput.keyboard import Key, Listener
 
@@ -179,7 +179,7 @@ def main():
             session.run(init)
             print("Restoring model")
             saver = tf.train.Saver()
-            saver.restore(session, "my_test_model")
+            saver.restore(session, "/Users/davidenardone/PycharmProjects/AI-Hackathon/face_expression/my_test_model")
             print("Done!")
 
             # cap = cv2.VideoCapture('conf_video2.mp4')
